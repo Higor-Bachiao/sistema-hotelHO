@@ -51,7 +51,6 @@ interface HotelContextType {
   guestHistory: GuestHistory[]
   getGuestHistory: () => GuestHistory[]
   deleteGuestHistory: (historyId: string) => void
-  debugUpdateHistoryStatus: (guestName: string, newStatus: "active" | "completed" | "cancelled") => void
   isLoading: boolean
   error: string | null
   lastSync: Date | null
@@ -252,6 +251,101 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // 🔄 Função para carregar histórico de hóspedes da API
+  const loadGuestHistoryFromAPI = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/guest-history`)
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success && data.data) {
+        // Converter formato do banco para formato do frontend
+        const convertedHistory = data.data.map((entry: any) => ({
+          id: entry.id,
+          guest: {
+            id: entry.id,
+            name: entry.guest_name,
+            email: entry.guest_email || '',
+            phone: entry.guest_phone || '',
+            cpf: entry.guest_document || '',
+            checkIn: entry.check_in_date,
+            checkOut: entry.check_out_date,
+            guests: entry.guest_guests || 1,
+            expenses: entry.expenses || []
+          },
+          roomNumber: entry.room_number,
+          roomType: entry.room_type,
+          checkInDate: entry.check_in_date,
+          checkOutDate: entry.check_out_date,
+          totalPrice: entry.total_price || 0,
+          status: entry.status,
+          createdAt: entry.created_at
+        }))
+        
+        setGuestHistory(convertedHistory)
+        console.log(`✅ Carregado histórico: ${convertedHistory.length} entradas da API`)
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao carregar histórico da API:", error)
+    }
+  }
+
+  // 🔄 Função para criar entrada no histórico via API
+  const createGuestHistoryEntry = async (historyData: any) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/guest-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guest_name: historyData.guest.name,
+          guest_email: historyData.guest.email,
+          guest_phone: historyData.guest.phone,
+          guest_document: historyData.guest.cpf,
+          guest_guests: historyData.guest.guests,
+          room_id: historyData.roomId,
+          room_number: historyData.roomNumber,
+          room_type: historyData.roomType,
+          check_in_date: historyData.checkInDate,
+          check_out_date: historyData.checkOutDate,
+          total_price: historyData.totalPrice,
+          expenses: historyData.guest.expenses || [],
+          status: historyData.status || 'active'
+        })
+      })
+
+      if (response.ok) {
+        console.log('✅ Entrada criada no histórico via API')
+        // Recarregar o histórico para manter sincronizado
+        await loadGuestHistoryFromAPI()
+      }
+    } catch (error) {
+      console.error('❌ Erro ao criar entrada no histórico:', error)
+    }
+  }
+
+  // 🔄 Função para atualizar status do histórico via API
+  const updateGuestHistoryStatus = async (entryId: string, status: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/guest-history/${entryId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      })
+
+      if (response.ok) {
+        console.log('✅ Status do histórico atualizado via API')
+        // Recarregar o histórico para manter sincronizado
+        await loadGuestHistoryFromAPI()
+      }
+    } catch (error) {
+      console.error('❌ Erro ao atualizar status do histórico:', error)
+    }
+  }
+
   //  Função para sincronizar dados automaticamente
   const syncData = async (silent = true) => {
     if (!isOnline) return
@@ -263,7 +357,8 @@ export function HotelProvider({ children }: { children: ReactNode }) {
 
       await Promise.all([
         loadRoomsFromAPI(),
-        loadReservationsFromAPI()
+        loadReservationsFromAPI(),
+        loadGuestHistoryFromAPI()
       ])
 
       setLastSync(new Date())
@@ -290,13 +385,6 @@ export function HotelProvider({ children }: { children: ReactNode }) {
         
         // Carregar dados da API
         await syncData(false)
-
-        // Carregar histórico usando a nova função que prioriza dados mais recentes
-        const storedHistory = loadFromStorage("hotel_guest_history")
-        if (storedHistory) {
-          setGuestHistory(storedHistory)
-          console.log("📋 Histórico carregado:", storedHistory.length, "entradas")
-        }
 
         console.log("✅ Dados iniciais carregados")
       } catch (error: any) {
@@ -377,36 +465,12 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  // 💾 Salvar histórico quando mudar
+  // 💾 Salvar apenas dados que não vêm da API no localStorage
   useEffect(() => {
-    if (!isLoading && guestHistory.length > 0) {
-      saveToStorage("hotel_guest_history", guestHistory)
-    }
+    // Histórico agora vem da API, não precisa salvar no localStorage
   }, [guestHistory, isLoading])
 
-  // 🔄 Listener para sincronização entre instâncias
-  useEffect(() => {
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'shared_hotel_guest_history' && e.newValue) {
-        try {
-          const newData = JSON.parse(e.newValue)
-          // Só atualizar se os dados são mais recentes
-          const currentData = loadFromStorage("hotel_guest_history")
-          const currentTimestamp = Date.now() - 1000 // 1 segundo de tolerância
-          
-          if (newData.timestamp > currentTimestamp) {
-            console.log("🔄 Sincronizando histórico de outra instância")
-            setGuestHistory(newData.data)
-          }
-        } catch (e) {
-          console.warn("Erro ao sincronizar histórico:", e)
-        }
-      }
-    }
-
-    window.addEventListener('storage', handleStorageChange)
-    return () => window.removeEventListener('storage', handleStorageChange)
-  }, [])
+  // 🔄 Histórico agora sincroniza via API, não precisa mais do localStorage
 
   // 📊 Aplicar filtros
   useEffect(() => {
@@ -438,26 +502,24 @@ export function HotelProvider({ children }: { children: ReactNode }) {
   }, [rooms, filters])
 
   // 📝 Função para adicionar ao histórico
-  const addToGuestHistory = (guest: Guest, roomId: string, status: "active" | "completed" | "cancelled" = "active") => {
+  const addToGuestHistory = async (guest: Guest, roomId: string, status: "active" | "completed" | "cancelled" = "active") => {
     const room = rooms.find((r) => r.id === roomId)
     if (!room) return
 
     const nights = getNumberOfNights(guest.checkIn, guest.checkOut)
     const totalPrice = room.price * guest.guests * nights + (guest.expenses?.reduce((sum, exp) => sum + exp.value, 0) || 0)
 
-    const historyEntry: GuestHistory = {
-      id: Date.now().toString(),
+    // Criar entrada no histórico via API
+    await createGuestHistoryEntry({
       guest,
+      roomId,
       roomNumber: room.number,
       roomType: room.type,
       checkInDate: guest.checkIn,
       checkOutDate: guest.checkOut,
       totalPrice,
-      status,
-      createdAt: new Date().toISOString(),
-    }
-
-    setGuestHistory((prev) => [historyEntry, ...prev])
+      status
+    })
   }
 
   // 🔍 Funções de busca e filtro
@@ -572,35 +634,24 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     const room = rooms.find((r) => r.id === roomId)
     console.log("🔍 Iniciando checkout para room:", roomId, "Room encontrado:", room)
     
-    // Função para atualizar o histórico
-    const updateGuestHistory = () => {
+    // Função para atualizar o histórico via API
+    const updateGuestHistory = async () => {
       if (room && room.guest) {
         console.log("📝 Atualizando histórico para hóspede:", room.guest.name, "Quarto:", room.number)
         
-        setGuestHistory((prev) => {
-          const updated = prev.map((entry) => {
-            const shouldUpdate = (
-              (entry.roomNumber === room.number || 
-               (entry.guest.id && room.guest?.id && entry.guest.id === room.guest.id)) && 
-              entry.status === "active"
-            )
-            
-            if (shouldUpdate) {
-              console.log("✅ Atualizando entrada do histórico:", entry.id, "de 'active' para 'completed'")
-              return { ...entry, status: "completed" as const }
-            }
-            return entry
-          })
-          
-          console.log("📊 Estado do histórico após atualização:", updated.map(h => ({
-            id: h.id, 
-            guest: h.guest.name, 
-            room: h.roomNumber, 
-            status: h.status
-          })))
-          
-          return updated
-        })
+        // Encontrar a entrada ativa no histórico para este quarto/hóspede
+        const activeEntry = guestHistory.find(entry => 
+          entry.roomNumber === room.number && 
+          entry.status === "active" &&
+          entry.guest.name === room.guest?.name
+        )
+        
+        if (activeEntry) {
+          console.log("✅ Atualizando status do histórico via API:", activeEntry.id)
+          await updateGuestHistoryStatus(activeEntry.id, "completed")
+        } else {
+          console.log("⚠️ Entrada ativa não encontrada no histórico")
+        }
       } else {
         console.log("⚠️ Não foi possível atualizar histórico - room ou guest não encontrado")
       }
@@ -625,7 +676,7 @@ export function HotelProvider({ children }: { children: ReactNode }) {
         })
         
         if (updateResponse.ok) {
-          updateGuestHistory() // Atualizar histórico
+          await updateGuestHistory() // Atualizar histórico
           await syncData(false) // Sincronizar dados forçadamente
           console.log("✅ Quarto liberado diretamente")
         }
@@ -639,7 +690,7 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       })
 
       if (response.ok) {
-        updateGuestHistory() // Atualizar histórico após checkout bem-sucedido
+        await updateGuestHistory() // Atualizar histórico após checkout bem-sucedido
         await syncData(false) // Sincronizar dados forçadamente
         console.log("✅ Checkout realizado")
       } else {
@@ -650,7 +701,7 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       console.error("❌ Erro ao fazer checkout:", error)
       // Tentar liberar o quarto manualmente como fallback
       try {
-        updateGuestHistory() // Atualizar histórico mesmo no fallback
+        await updateGuestHistory() // Atualizar histórico mesmo no fallback
         setRooms((prev) =>
           prev.map((room) =>
             room.id === roomId ? { ...room, status: "available", guest: undefined } : room,
@@ -713,16 +764,27 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       
       if (data.success) {
         if (reservation) {
-          setGuestHistory((prev) =>
-            prev.map((entry) =>
-              (entry.guest.name === reservation.guest.name ||
-               (entry.guest.id && reservation.guest.id && entry.guest.id === reservation.guest.id)) &&
-              entry.checkInDate === reservation.guest.checkIn &&
-              entry.status === "active"
-                ? { ...entry, status: "cancelled" }
-                : entry,
-            ),
-          )
+          // Buscar o histórico correspondente para atualizar o status
+          try {
+            const historyResponse = await fetch(`${API_BASE_URL}/guest-history`)
+            if (historyResponse.ok) {
+              const historyData = await historyResponse.json()
+              if (historyData.success && historyData.data) {
+                const entryToUpdate = historyData.data.find((entry: any) => 
+                  (entry.guest_name === reservation.guest.name ||
+                   (entry.id && reservation.guest.id && entry.id === reservation.guest.id)) &&
+                  entry.check_in_date === reservation.guest.checkIn &&
+                  entry.status === "active"
+                )
+                
+                if (entryToUpdate) {
+                  await updateGuestHistoryStatus(entryToUpdate.id, "cancelled")
+                }
+              }
+            }
+          } catch (historyError) {
+            console.error("❌ Erro ao atualizar histórico:", historyError)
+          }
         }
 
         await syncData(false) // Sincronizar dados forçadamente
@@ -735,7 +797,7 @@ export function HotelProvider({ children }: { children: ReactNode }) {
   }
 
   // 💰 Função de despesas
-  const addExpenseToRoom = (roomId: string, expense: Expense) => {
+  const addExpenseToRoom = async (roomId: string, expense: Expense) => {
     setRooms((prev) =>
       prev.map((room) => {
         if (room.id === roomId && room.guest) {
@@ -747,22 +809,45 @@ export function HotelProvider({ children }: { children: ReactNode }) {
             },
           }
 
-          setGuestHistory((prevHistory) =>
-            prevHistory.map((entry) =>
-              (entry.roomNumber === room.number || 
-               (entry.guest.id && room.guest?.id && entry.guest.id === room.guest.id)) && 
-              entry.status === "active"
-                ? {
-                    ...entry,
-                    totalPrice: entry.totalPrice + expense.value,
-                    guest: {
-                      ...entry.guest,
-                      expenses: [...(entry.guest.expenses || []), expense],
-                    },
+          // Atualizar histórico via API
+          const updateHistoryAsync = async () => {
+            try {
+              const historyResponse = await fetch(`${API_BASE_URL}/guest-history`)
+              if (historyResponse.ok) {
+                const historyData = await historyResponse.json()
+                if (historyData.success && historyData.data) {
+                  const entryToUpdate = historyData.data.find((entry: any) => 
+                    (entry.room_number === room.number || 
+                     (entry.id && room.guest?.id && entry.id === room.guest.id)) && 
+                    entry.status === "active"
+                  )
+                  
+                  if (entryToUpdate) {
+                    const updatedExpenses = [...(entryToUpdate.expenses || []), expense]
+                    const newTotalPrice = (entryToUpdate.total_price || 0) + expense.value
+                    
+                    const updateResponse = await fetch(`${API_BASE_URL}/guest-history/${entryToUpdate.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        expenses: updatedExpenses,
+                        total_price: newTotalPrice
+                      })
+                    })
+                    
+                    if (updateResponse.ok) {
+                      // Recarregar histórico do banco
+                      await loadGuestHistoryFromAPI()
+                    }
                   }
-                : entry,
-            ),
-          )
+                }
+              }
+            } catch (error) {
+              console.error("❌ Erro ao atualizar despesa no histórico:", error)
+            }
+          }
+          
+          updateHistoryAsync()
 
           return updatedRoom
         }
@@ -842,44 +927,32 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     return guestHistory.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }
 
-  const deleteGuestHistory = (historyId: string) => {
-    setGuestHistory((prev) => prev.filter((entry) => entry.id !== historyId))
+  const deleteGuestHistory = async (historyId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/guest-history/${historyId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        throw new Error(`Erro HTTP: ${response.status}`)
+      }
+      
+      const data = await response.json()
+      
+      if (data.success) {
+        // Atualizar estado local após sucesso na API
+        setGuestHistory((prev) => prev.filter((entry) => entry.id !== historyId))
+        console.log("✅ Histórico deletado com sucesso")
+      } else {
+        throw new Error(data.error || "Erro ao deletar histórico")
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao deletar histórico:", error)
+      setError(`Erro ao deletar histórico: ${error.message}`)
+    }
   }
 
-  // 🔧 Função de debug para atualizar status do histórico
-  const debugUpdateHistoryStatus = (guestName: string, newStatus: "active" | "completed" | "cancelled") => {
-    console.log(`🔧 DEBUG: Atualizando status de ${guestName} para ${newStatus}`)
-    console.log("📋 Estado atual do histórico:", guestHistory.map(h => ({
-      id: h.id,
-      guest: h.guest.name, 
-      status: h.status,
-      room: h.roomNumber
-    })))
-    
-    setGuestHistory((prev) => {
-      console.log("📝 Procurando por:", guestName)
-      const updated = prev.map((entry) => {
-        console.log(`🔍 Verificando: "${entry.guest.name}" === "${guestName}"?`, entry.guest.name === guestName)
-        if (entry.guest.name === guestName) {
-          console.log(`✅ Encontrado ${guestName}, atualizando de ${entry.status} para ${newStatus}`)
-          return { ...entry, status: newStatus }
-        }
-        return entry
-      })
-      console.log("📊 Estado após debug update:", updated.map(h => ({
-        guest: h.guest.name, 
-        status: h.status
-      })))
-      
-      // Forçar salvamento no localStorage
-      setTimeout(() => {
-        saveToStorage("hotel_guest_history", updated)
-        console.log("💾 Histórico salvo no localStorage")
-      }, 100)
-      
-      return updated
-    })
-  }
+
 
   return (
     <HotelContext.Provider
@@ -903,7 +976,6 @@ export function HotelProvider({ children }: { children: ReactNode }) {
         guestHistory,
         getGuestHistory,
         deleteGuestHistory,
-        debugUpdateHistoryStatus,
         isLoading,
         error,
         lastSync,

@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useHotel } from "@/contexts/hotel-context"
 import { useAuth } from "@/contexts/auth-context"
+import type { Room } from "@/types/hotel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +18,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Edit, Trash2, Bed, DollarSign } from "lucide-react"
@@ -29,6 +41,7 @@ export default function AdminPanel() {
   const [editPrice, setEditPrice] = useState<number>(0)
   const [showEditRoom, setShowEditRoom] = useState(false)
   const [selectedRoomForEdit, setSelectedRoomForEdit] = useState<any>(null)
+  const [roomToDelete, setRoomToDelete] = useState<string | null>(null)
 
   const [newRoom, setNewRoom] = useState({
     number: "",
@@ -69,7 +82,14 @@ export default function AdminPanel() {
   }
 
   const handleDeleteRoom = (roomId: string) => {
-    deleteRoom(roomId)
+    setRoomToDelete(roomId)
+  }
+
+  const confirmDeleteRoom = () => {
+    if (roomToDelete) {
+      deleteRoom(roomToDelete)
+      setRoomToDelete(null)
+    }
   }
 
   const handleEditPrice = (roomId: string, currentPrice: number) => {
@@ -260,6 +280,154 @@ export default function AdminPanel() {
                 </div>
               </DialogContent>
             </Dialog>
+
+            {/* Diálogo de Edição de Quarto */}
+            <Dialog open={showEditRoom} onOpenChange={setShowEditRoom}>
+              <DialogContent className="max-w-sm sm:max-w-md mx-2">
+                <DialogHeader>
+                  <DialogTitle className="text-base sm:text-lg">Editar Quarto</DialogTitle>
+                  <DialogDescription className="text-xs sm:text-sm">
+                    Edite as informações do quarto {selectedRoomForEdit?.number}
+                  </DialogDescription>
+                </DialogHeader>
+
+                {selectedRoomForEdit && (
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-number" className="text-xs sm:text-sm">Número</Label>
+                        <Input
+                          id="edit-number"
+                          className="h-8 sm:h-10 text-xs sm:text-sm"
+                          value={selectedRoomForEdit.number}
+                          // @ts-ignore
+                          onChange={(e) => setSelectedRoomForEdit(prev => ({ ...prev, number: e.target.value }))}
+                          placeholder="101"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-type" className="text-xs sm:text-sm">Tipo</Label>
+                        <Select
+                          value={selectedRoomForEdit.type}
+                          // @ts-ignore
+                          onValueChange={(value) => setSelectedRoomForEdit(prev => ({ ...prev, type: value }))}
+                        >
+                          <SelectTrigger className="h-8 sm:h-10 text-xs sm:text-sm">
+                            <SelectValue placeholder="Selecione" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {roomTypes.map((type) => (
+                              <SelectItem key={type} value={type} className="text-xs sm:text-sm">
+                                {type}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-capacity" className="text-xs sm:text-sm">Capacidade</Label>
+                        <Input
+                          id="edit-capacity"
+                          type="number"
+                          min="1"
+                          max="10"
+                          className="h-8 sm:h-10 text-xs sm:text-sm"
+                          value={selectedRoomForEdit.capacity}
+                          // @ts-ignore
+                          onChange={(e) => setSelectedRoomForEdit(prev => ({ ...prev, capacity: Number.parseInt(e.target.value) }))}
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-beds" className="text-xs sm:text-sm">Camas</Label>
+                        <Input
+                          id="edit-beds"
+                          type="number"
+                          min="1"
+                          max="5"
+                          className="h-8 sm:h-10 text-xs sm:text-sm"
+                          value={selectedRoomForEdit.beds}
+                          // @ts-ignore
+                          onChange={(e) => setSelectedRoomForEdit(prev => ({ ...prev, beds: Number.parseInt(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="edit-price" className="text-xs sm:text-sm">Preço (R$ por pessoa/noite)</Label>
+                      <Input
+                        id="edit-price"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        className="h-8 sm:h-10 text-xs sm:text-sm"
+                        value={selectedRoomForEdit.price}
+                        // @ts-ignore
+                        onChange={(e) => setSelectedRoomForEdit(prev => ({ ...prev, price: Number.parseFloat(e.target.value) }))}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs sm:text-sm">Comodidades</Label>
+                      <div className="flex flex-wrap gap-1 sm:gap-2">
+                        {amenityOptions.map((amenity) => (
+                          <Badge
+                            key={amenity}
+                            variant={selectedRoomForEdit.amenities?.includes(amenity) ? "default" : "outline"}
+                            className="cursor-pointer text-xs px-2 py-1"
+                            onClick={() => {
+                              const currentAmenities = selectedRoomForEdit.amenities || []
+                              // @ts-ignore
+                              const newAmenities = currentAmenities.includes(amenity)
+                                // @ts-ignore
+                                ? currentAmenities.filter(a => a !== amenity)
+                                : [...currentAmenities, amenity]
+                              // @ts-ignore
+                              setSelectedRoomForEdit(prev => ({ ...prev, amenities: newAmenities }))
+                            }}
+                          >
+                            {amenity}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="text-xs sm:text-sm">Status</Label>
+                      <Select
+                        value={selectedRoomForEdit.status}
+                        // @ts-ignore
+                        onValueChange={(value) => setSelectedRoomForEdit(prev => ({ ...prev, status: value }))}
+                      >
+                        <SelectTrigger className="h-8 sm:h-10 text-xs sm:text-sm">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="available">Disponível</SelectItem>
+                          <SelectItem value="occupied">Ocupado</SelectItem>
+                          <SelectItem value="maintenance">Manutenção</SelectItem>
+                          <SelectItem value="cleaning">Limpeza</SelectItem>
+                          <SelectItem value="reserved">Reservado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <Button variant="outline" onClick={() => setShowEditRoom(false)} className="flex-1 h-8 sm:h-10 text-xs sm:text-sm">
+                        Cancelar
+                      </Button>
+                      <Button onClick={handleSaveEditRoom} className="flex-1 h-8 sm:h-10 text-xs sm:text-sm">
+                        Salvar
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </div>
 
           <Card>
@@ -336,12 +504,31 @@ export default function AdminPanel() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1 sm:gap-2">
-                            <Button variant="outline" size="sm" className="h-6 w-6 sm:h-8 sm:w-8 p-0">
+                            <Button variant="outline" size="sm" onClick={() => handleEditRoom(room)} className="h-6 w-6 sm:h-8 sm:w-8 p-0">
                               <Edit className="w-3 h-3 sm:w-4 sm:h-4" />
                             </Button>
-                            <Button variant="outline" size="sm" onClick={() => handleDeleteRoom(room.id)} className="h-6 w-6 sm:h-8 sm:w-8 p-0">
-                              <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="outline" size="sm" className="h-6 w-6 sm:h-8 sm:w-8 p-0">
+                                  <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Tem certeza que deseja excluir o quarto {room.number}?
+                                    Esta ação não pode ser desfeita.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => { setRoomToDelete(room.id); confirmDeleteRoom(); }}>
+                                    Excluir
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </TableCell>
                       </TableRow>
