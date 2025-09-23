@@ -46,8 +46,24 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
     setIsSubmitting(true)
 
     try {
+      // Validação de campos obrigatórios
+      if (!formData.guestName || !formData.guestEmail) {
+        console.log("Campos obrigatórios não preenchidos")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Validação de email válido
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.guestEmail)) {
+        console.log("Email inválido")
+        setIsSubmitting(false)
+        return
+      }
+
       if (!selectedRoom) {
-        alert("Por favor, selecione um quarto válido.")
+        console.log("Nenhum quarto selecionado")
+        setIsSubmitting(false)
         return
       }
 
@@ -55,7 +71,7 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
       const checkInDate = new Date(formData.checkIn)
       const checkOutDate = new Date(formData.checkOut)
       if (checkOutDate <= checkInDate) {
-        alert("A data de check-out deve ser posterior à data de check-in.")
+        console.log("Data de check-out deve ser posterior ao check-in")
         setIsSubmitting(false)
         return
       }
@@ -64,9 +80,9 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
         roomId: formData.roomId,
         guest: {
           name: formData.guestName,
-          email: formData.guestEmail || undefined, // Só envia se preenchido
-          phone: formData.guestPhone || undefined, // Só envia se preenchido
-          cpf: formData.guestCpf || undefined, // Só envia se preenchido
+          email: formData.guestEmail, // Agora obrigatório
+          phone: formData.guestPhone || undefined, // Opcional
+          cpf: formData.guestCpf || undefined, // Opcional
           checkIn: formData.checkIn,
           checkOut: formData.checkOut,
           guests: formData.guests,
@@ -84,11 +100,10 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
         guests: 1,
       })
 
-      alert("Reserva realizada com sucesso!")
+      console.log("Reserva realizada com sucesso!")
       onReservationSuccess?.()
     } catch (error) {
       console.error("Erro ao fazer reserva:", error)
-      alert("Erro ao fazer reserva. Tente novamente.")
     } finally {
       setIsSubmitting(false)
     }
@@ -170,7 +185,7 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
 
               <div className="space-y-2">
                 <Label htmlFor="guestEmail">
-                  Email <span className="text-gray-400 text-sm">(opcional)</span>
+                  Email <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="guestEmail"
@@ -178,7 +193,7 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
                   value={formData.guestEmail}
                   onChange={(e) => handleInputChange("guestEmail", e.target.value)}
                   placeholder="email@exemplo.com"
-                  // Removido: required
+                  required
                 />
               </div>
 

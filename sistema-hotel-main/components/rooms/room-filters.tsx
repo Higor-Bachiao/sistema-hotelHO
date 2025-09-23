@@ -20,18 +20,20 @@ export default function RoomFilters() {
     { value: "available", label: "Disponível" },
     { value: "occupied", label: "Ocupado" },
     { value: "maintenance", label: "Manutenção" },
+    { value: "cleaning", label: "Limpeza" },
     { value: "reserved", label: "Reservado" },
   ]
 
   const hasActiveFilters = filters.type || filters.status || filters.minPrice || filters.maxPrice
 
   return (
-    <div className="flex gap-2">
+    <div className="flex gap-2 w-full sm:w-auto">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" className="flex-1 sm:flex-none h-10">
             <Filter className="w-4 h-4 mr-2" />
-            Filtros
+            <span className="hidden sm:inline">Filtros</span>
+            <span className="sm:hidden">Filtro</span>
             {hasActiveFilters && <span className="ml-1 bg-blue-600 text-white text-xs rounded-full w-2 h-2"></span>}
           </Button>
         </DropdownMenuTrigger>
@@ -65,9 +67,9 @@ export default function RoomFilters() {
       </DropdownMenu>
 
       {hasActiveFilters && (
-        <Button variant="ghost" size="sm" onClick={clearFilters}>
-          <X className="w-4 h-4 mr-1" />
-          Limpar
+        <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 px-2 sm:px-3">
+          <X className="w-4 h-4 sm:mr-1" />
+          <span className="hidden sm:inline">Limpar</span>
         </Button>
       )}
     </div>

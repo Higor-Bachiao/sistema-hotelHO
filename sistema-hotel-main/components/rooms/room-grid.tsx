@@ -17,29 +17,33 @@ export default function RoomGrid() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row gap-4">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
           <Input
             placeholder="Buscar quartos..."
             value={searchTerm}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-10"
+            className="pl-10 h-10"
           />
         </div>
-        <RoomFilters />
+        <div className="flex-shrink-0">
+          <RoomFilters />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
         {filteredRooms.map((room) => (
           <RoomCard key={room.id} room={room} />
         ))}
       </div>
 
       {filteredRooms.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500 text-lg">Nenhum quarto encontrado com os filtros aplicados.</p>
+        <div className="text-center py-8 sm:py-12">
+          <p className="text-gray-500 text-base sm:text-lg px-4">
+            Nenhum quarto encontrado com os filtros aplicados.
+          </p>
         </div>
       )}
     </div>

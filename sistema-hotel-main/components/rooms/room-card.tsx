@@ -49,6 +49,8 @@ export default function RoomCard({ room }: RoomCardProps) {
         return { statusText: "Ocupado", statusColor: "bg-red-100 text-red-800 border-red-200" }
       case "maintenance":
         return { statusText: "Manutenção", statusColor: "bg-yellow-100 text-yellow-800 border-yellow-200" }
+      case "cleaning":
+        return { statusText: "Limpeza", statusColor: "bg-purple-100 text-purple-800 border-purple-200" }
       case "reserved":
         return { statusText: "Reservado", statusColor: "bg-blue-100 text-blue-800 border-blue-200" }
       default:
@@ -59,21 +61,23 @@ export default function RoomCard({ room }: RoomCardProps) {
   const { statusText: displayedStatusText, statusColor: displayedStatusColor } = getStatusDisplay()
 
   const handleLiberarQuarto = async () => {
-    if (confirm("Tem certeza que deseja liberar este quarto?")) {
-      await checkoutRoom(room.id)
-    }
+    await checkoutRoom(room.id)
   }
 
   const handleAddExpense = async () => {
     if (room.guest && newExpenseDescription && newExpenseValue !== "" && Number(newExpenseValue) > 0) {
-      await addExpenseToRoom(room.id, {
+      const expense = {
+        id: Date.now(),
+        guest_id: room.guest.id || '',
         description: newExpenseDescription,
         value: Number(newExpenseValue),
-      })
+        created_at: new Date().toISOString()
+      }
+      await addExpenseToRoom(room.id, expense)
       setNewExpenseDescription("")
       setNewExpenseValue("")
     } else {
-      alert("Por favor, preencha a descrição e um valor válido para a despesa.")
+      console.log("Preencha a descrição e um valor válido para a despesa.")
     }
   }
 
@@ -97,69 +101,74 @@ export default function RoomCard({ room }: RoomCardProps) {
 
   return (
     <>
-      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+      <Card className="hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Quarto {room.number}</h3>
-            <Badge className={displayedStatusColor}>{displayedStatusText}</Badge>
+            <h3 className="text-base sm:text-lg font-semibold truncate">Quarto {room.number}</h3>
+            <Badge className={`${displayedStatusColor} text-xs`}>{displayedStatusText}</Badge>
           </div>
-          <p className="text-sm text-gray-600">{room.type}</p>
+          <p className="text-xs sm:text-sm text-gray-600 truncate">{room.type}</p>
         </CardHeader>
 
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 flex-1">
           <div className="flex flex-col">
-            <span className="text-2xl font-bold text-blue-600">R$ {displayPrice.toFixed(2)}</span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xl sm:text-2xl font-bold text-blue-600">R$ {displayPrice.toFixed(2)}</span>
+            <span className="text-xs text-gray-500 leading-tight">
               {room.guest
                 ? `R$ ${room.price.toFixed(2)}/pessoa/noite + despesas`
                 : `R$ ${room.price.toFixed(2)} por pessoa/noite`}
             </span>
           </div>
 
-          <div className="flex items-center space-x-4 text-sm text-gray-600">
+          <div className="flex items-center space-x-3 sm:space-x-4 text-xs sm:text-sm text-gray-600">
             <div className="flex items-center space-x-1">
-              <Users className="w-4 h-4" />
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>{room.capacity}</span>
             </div>
             <div className="flex items-center space-x-1">
-              <Bed className="w-4 h-4" />
+              <Bed className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>{room.beds}</span>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-1">
-            {room.amenities.includes("wifi") && <Wifi className="w-4 h-4 text-blue-500" />}
-            {room.amenities.includes("parking") && <Car className="w-4 h-4 text-green-500" />}
-            {room.amenities.includes("breakfast") && <Coffee className="w-4 h-4 text-orange-500" />}
-            {room.amenities.includes("tv") && <Tv className="w-4 h-4 text-purple-500" />}
+            {room.amenities.includes("wifi") && <Wifi className="w-3 h-3 sm:w-4 sm:h-4 text-blue-500" />}
+            {room.amenities.includes("parking") && <Car className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />}
+            {room.amenities.includes("breakfast") && <Coffee className="w-3 h-3 sm:w-4 sm:h-4 text-orange-500" />}
+            {room.amenities.includes("tv") && <Tv className="w-3 h-3 sm:w-4 sm:h-4 text-purple-500" />}
             {room.amenities.includes("ar-condicionado") && (
-              <img src="/placeholder.svg?height=16&width=16" alt="Ar Condicionado" className="w-4 h-4" />
+              <img src="/placeholder.svg?height=16&width=16" alt="Ar Condicionado" className="w-3 h-3 sm:w-4 sm:h-4" />
             )}
           </div>
 
           {room.guest && (
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <p className="text-sm font-medium">{room.guest.name}</p>
-              {room.guest.email && <p className="text-xs text-gray-600">{room.guest.email}</p>}
+            <div className="bg-gray-50 p-2 sm:p-3 rounded-lg">
+              <p className="text-xs sm:text-sm font-medium truncate">{room.guest.name}</p>
+              {room.guest.email && <p className="text-xs text-gray-600 truncate">{room.guest.email}</p>}
               <p className="text-xs text-gray-600">Check-in: {new Date(room.guest.checkIn).toLocaleDateString()}</p>
             </div>
           )}
         </CardContent>
 
-        <CardFooter className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setShowDetails(true)} className="flex-1">
+        <CardFooter className="flex flex-col sm:flex-row gap-2 pt-3">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowDetails(true)} 
+            className="w-full sm:flex-1 text-xs sm:text-sm"
+          >
             Detalhes
           </Button>
 
           {canReserve && (
             <Dialog open={showReservationDialog} onOpenChange={setShowReservationDialog}>
               <DialogTrigger asChild>
-                <Button size="sm" className="flex-1">
-                  <Calendar className="w-4 h-4 mr-1" />
+                <Button size="sm" className="w-full sm:flex-1 text-xs sm:text-sm">
+                  <Calendar className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                   Reservar
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto flex flex-col">
+              <DialogContent className="mx-2 max-w-lg max-h-[90vh] overflow-y-auto flex flex-col">
                 <DialogHeader>
                   <DialogTitle>Reservar Quarto {room.number}</DialogTitle>
                   <DialogDescription>Preencha os dados para confirmar a reserva.</DialogDescription>
@@ -170,8 +179,13 @@ export default function RoomCard({ room }: RoomCardProps) {
           )}
 
           {canCheckout && (
-            <Button size="sm" onClick={handleLiberarQuarto} variant="destructive" className="flex-1">
-              <CheckCircle className="w-4 h-4 mr-1" />
+            <Button 
+              size="sm" 
+              onClick={handleLiberarQuarto} 
+              variant="destructive" 
+              className="w-full sm:flex-1 text-xs sm:text-sm"
+            >
+              <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
               Liberar Quarto
             </Button>
           )}
@@ -264,7 +278,7 @@ export default function RoomCard({ room }: RoomCardProps) {
                         {room.guest.expenses.map((expense, index) => (
                           <li key={index} className="flex justify-between">
                             <span>{expense.description}</span>
-                            <span>R$ {expense.value.toFixed(2)}</span>
+                            <span>R$ {(expense.value || 0).toFixed(2)}</span>
                           </li>
                         ))}
                       </ul>

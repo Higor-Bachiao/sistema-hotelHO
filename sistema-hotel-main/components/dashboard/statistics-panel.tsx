@@ -1,6 +1,7 @@
 "use client"
 
 import { useHotel } from "@/contexts/hotel-context"
+import { useApiStatistics } from "@/hooks/use-api-statistics"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
@@ -21,13 +22,17 @@ import {
   Mail,
   Phone,
   Trash2,
+  RefreshCw,
 } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 export default function StatisticsPanel() {
-  const { getStatistics, getGuestHistory, deleteGuestHistory } = useHotel()
-  const stats = getStatistics()
+  const { getStatistics, getGuestHistory, deleteGuestHistory, debugUpdateHistoryStatus } = useHotel()
+  const { statistics: apiStats, loading: statsLoading, refresh: refreshStats } = useApiStatistics()
+  
+  // Usar estatísticas da API se disponíveis, senão usar as locais
+  const stats = apiStats || getStatistics()
   const guestHistory = getGuestHistory()
 
   // Dados para o gráfico de barras (quartos por tipo)
@@ -82,22 +87,34 @@ export default function StatisticsPanel() {
   }
 
   const handleDeleteHistory = (historyId: string, guestName: string) => {
-    if (confirm(`Tem certeza que deseja excluir o registro de ${guestName} do histórico?`)) {
-      deleteGuestHistory(historyId)
-    }
+    deleteGuestHistory(historyId)
   }
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Card: Total de Quartos */}
+    <div className="space-y-4 sm:space-y-6">
+      {/* Header com botão de atualizar */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center space-y-2 sm:space-y-0">
+        <h2 className="text-xl sm:text-2xl font-bold">Dashboard do Hotel</h2>
+        <Button 
+          onClick={refreshStats} 
+          disabled={statsLoading}
+          variant="outline"
+          size="sm"
+          className="w-full sm:w-auto text-xs sm:text-sm"
+        >
+          <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${statsLoading ? 'animate-spin' : ''}`} />
+          {statsLoading ? 'Carregando...' : 'Atualizar Estatísticas'}
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">{/* Card: Total de Quartos */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Quartos</CardTitle>
-            <Bed className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total de Quartos</CardTitle>
+            <Bed className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalRooms}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">{stats.totalRooms}</div>
             <p className="text-xs text-muted-foreground">
               {stats.occupiedRooms} ocupados de {stats.totalRooms}
             </p>
@@ -106,98 +123,98 @@ export default function StatisticsPanel() {
 
         {/* Card: Taxa de Ocupação */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Taxa de Ocupação</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Taxa de Ocupação</CardTitle>
+            <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.occupancyRate.toFixed(1)}%</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">{stats.occupancyRate.toFixed(1)}%</div>
             <Progress value={stats.occupancyRate} className="mt-2" />
           </CardContent>
         </Card>
 
         {/* Card: Receita Mensal */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Receita Acumulada (Mês)</CardTitle>
+            <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">R$ {stats.monthlyRevenue.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">Baseado nas reservas ativas</p>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">R$ {stats.monthlyRevenue.toFixed(2)}</div>
+            <p className="text-xs text-muted-foreground">Receita acumulada das estadias no mês atual</p>
           </CardContent>
         </Card>
 
         {/* Card: Hóspedes Ativos */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Hóspedes Ativos</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Hóspedes Ativos</CardTitle>
+            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeGuests}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold">{stats.activeGuests}</div>
             <p className="text-xs text-muted-foreground">Pessoas hospedadas atualmente</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Status dos Quartos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Disponíveis</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Disponíveis</CardTitle>
+            <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 text-green-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.availableRooms}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-green-600">{stats.availableRooms}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ocupados</CardTitle>
-            <Users className="h-4 w-4 text-red-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Ocupados</CardTitle>
+            <Users className="h-3 w-3 sm:h-4 sm:w-4 text-red-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">{stats.occupiedRooms}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-red-600">{stats.occupiedRooms}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reservados</CardTitle>
-            <Calendar className="h-4 w-4 text-blue-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Reservados</CardTitle>
+            <Calendar className="h-3 w-3 sm:h-4 sm:w-4 text-blue-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.reservedRooms}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-blue-600">{stats.reservedRooms}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Manutenção</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Manutenção</CardTitle>
+            <AlertTriangle className="h-3 w-3 sm:h-4 sm:w-4 text-yellow-600" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.maintenanceRooms}</div>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <div className="text-lg sm:text-2xl font-bold text-yellow-600">{stats.maintenanceRooms}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Gráfico de Barras - Quartos por Tipo */}
         <Card>
-          <CardHeader>
-            <CardTitle>Quartos por Tipo</CardTitle>
-            <CardDescription>Distribuição dos quartos por categoria</CardDescription>
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-base sm:text-lg">Quartos por Tipo</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Distribuição dos quartos por categoria</CardDescription>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={roomTypeData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="type" />
-                <YAxis />
+                <XAxis dataKey="type" fontSize={12} />
+                <YAxis fontSize={12} />
                 <Tooltip />
                 <Bar dataKey="count" fill="#3B82F6" />
               </BarChart>
@@ -207,13 +224,13 @@ export default function StatisticsPanel() {
 
         {/* Gráfico de Pizza - Status dos Quartos */}
         <Card>
-          <CardHeader>
-            <CardTitle>Status dos Quartos</CardTitle>
-            <CardDescription>Distribuição atual por status</CardDescription>
+          <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+            <CardTitle className="text-base sm:text-lg">Status dos Quartos</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Distribuição atual por status</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
             {statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
+              <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
                   <Pie
                     data={statusData}
@@ -221,8 +238,8 @@ export default function StatisticsPanel() {
                     cy="50%"
                     labelLine={false}
                     label={renderCustomLabel}
-                    outerRadius={100}
-                    innerRadius={40}
+                    outerRadius={80}
+                    innerRadius={30}
                     fill="#8884d8"
                     dataKey="value"
                     stroke="#fff"
@@ -236,17 +253,17 @@ export default function StatisticsPanel() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                <p>Nenhum dado disponível para exibir</p>
+              <div className="flex items-center justify-center h-[250px] text-muted-foreground">
+                <p className="text-xs sm:text-sm">Nenhum dado disponível para exibir</p>
               </div>
             )}
 
             {/* Legenda personalizada */}
-            <div className="flex flex-wrap justify-center gap-4 mt-4">
+            <div className="flex flex-wrap justify-center gap-2 sm:gap-4 mt-4">
               {statusData.map((entry, index) => (
-                <div key={index} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
-                  <span className="text-sm text-muted-foreground">
+                <div key={index} className="flex items-center gap-1 sm:gap-2">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                  <span className="text-xs sm:text-sm text-muted-foreground">
                     {entry.name}: {entry.value}
                   </span>
                 </div>
@@ -258,63 +275,76 @@ export default function StatisticsPanel() {
 
       {/* Histórico de Hóspedes */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="w-5 h-5" />
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <History className="w-4 h-4 sm:w-5 sm:h-5" />
             Histórico de Hóspedes
+            {/* DEBUG: Botão para limpar localStorage */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                localStorage.removeItem("hotel_guest_history")
+                console.log("🧹 localStorage limpo")
+                window.location.reload()
+              }}
+              className="w-6 h-6 sm:w-8 sm:h-8 p-0"
+            >
+              <span className="text-xs sm:text-sm">🧹</span>
+            </Button>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm">
             Registro completo de todas as reservas e estadias ({guestHistory.length} registros)
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {guestHistory.length > 0 ? (
-            <div className="max-h-96 overflow-y-auto">
+            <div className="max-h-96 overflow-y-auto overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Hóspede</TableHead>
-                    <TableHead>Quarto</TableHead>
-                    <TableHead>Check-in</TableHead>
-                    <TableHead>Check-out</TableHead>
-                    <TableHead>Pessoas</TableHead>
-                    <TableHead>Total</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Contato</TableHead>
-                    <TableHead>Ações</TableHead>
+                    <TableHead className="text-xs sm:text-sm min-w-[120px]">Hóspede</TableHead>
+                    <TableHead className="text-xs sm:text-sm min-w-[60px]">Quarto</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Check-in</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Check-out</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden md:table-cell">Pessoas</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Total</TableHead>
+                    <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                    <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Contato</TableHead>
+                    <TableHead className="text-xs sm:text-sm min-w-[60px]">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {guestHistory.map((entry) => (
                     <TableRow key={entry.id}>
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 text-muted-foreground" />
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <User className="w-3 h-3 sm:w-4 sm:h-4 text-muted-foreground" />
                           <div>
-                            <div className="font-medium">{entry.guest.name}</div>
+                            <div className="font-medium text-xs sm:text-sm">{entry.guest.name}</div>
                             {entry.guest.cpf && (
-                              <div className="text-xs text-muted-foreground">CPF: {entry.guest.cpf}</div>
+                              <div className="text-xs text-muted-foreground hidden sm:block">CPF: {entry.guest.cpf}</div>
                             )}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="text-xs sm:text-sm">
                         <div>
-                          <div className="font-medium">Quarto {entry.roomNumber}</div>
+                          <div className="font-medium text-xs sm:text-sm">Quarto {entry.roomNumber}</div>
                           <div className="text-xs text-muted-foreground">{entry.roomType}</div>
                         </div>
                       </TableCell>
-                      <TableCell>{format(new Date(entry.checkInDate), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
-                      <TableCell>{format(new Date(entry.checkOutDate), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
-                      <TableCell>{entry.guest.guests}</TableCell>
-                      <TableCell className="font-medium">R$ {entry.totalPrice.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{format(new Date(entry.checkInDate), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                      <TableCell className="text-xs sm:text-sm hidden sm:table-cell">{format(new Date(entry.checkOutDate), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
+                      <TableCell className="text-xs sm:text-sm hidden md:table-cell">{entry.guest.guests}</TableCell>
+                      <TableCell className="font-medium text-xs sm:text-sm">R$ {entry.totalPrice.toFixed(2)}</TableCell>
                       <TableCell>{getStatusBadge(entry.status)}</TableCell>
-                      <TableCell>
+                      <TableCell className="hidden lg:table-cell">
                         <div className="flex flex-col text-xs space-y-1">
                           {entry.guest.email && (
                             <div className="flex items-center gap-1">
                               <Mail className="w-3 h-3 text-muted-foreground" />
-                              <span>{entry.guest.email}</span>
+                              <span className="truncate max-w-[120px]">{entry.guest.email}</span>
                             </div>
                           )}
                           {entry.guest.phone && (
@@ -329,13 +359,32 @@ export default function StatisticsPanel() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => handleDeleteHistory(entry.id, entry.guest.name)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+                        <div className="flex gap-1">
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleDeleteHistory(entry.id, entry.guest.name)}
+                            className="h-6 w-6 sm:h-8 sm:w-8 p-0"
+                          >
+                            <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
+                          </Button>
+                          {/* DEBUG: Botão temporário para testar atualização */}
+                          {entry.status === "active" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                console.log("🔧 Testando atualização para:", entry.guest.name)
+                                console.log("🔧 Nome em bytes:", Array.from(entry.guest.name).map(c => c.charCodeAt(0)))
+                                console.log("🔧 Comprimento:", entry.guest.name.length)
+                                debugUpdateHistoryStatus(entry.guest.name, "completed")
+                              }}
+                              className="h-6 w-6 sm:h-8 sm:w-8 p-0"
+                            >
+                              <span className="text-xs">✓</span>
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -343,10 +392,10 @@ export default function StatisticsPanel() {
               </Table>
             </div>
           ) : (
-            <div className="p-6 text-center text-muted-foreground">
-              <History className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p>Nenhum histórico de hóspedes encontrado.</p>
-              <p className="text-sm">Faça algumas reservas para ver o histórico aqui.</p>
+            <div className="p-4 sm:p-6 text-center text-muted-foreground">
+              <History className="w-8 h-8 sm:w-12 sm:h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-sm sm:text-base">Nenhum histórico de hóspedes encontrado.</p>
+              <p className="text-xs sm:text-sm">Faça algumas reservas para ver o histórico aqui.</p>
             </div>
           )}
         </CardContent>
@@ -354,18 +403,18 @@ export default function StatisticsPanel() {
 
       {/* Resumo Detalhado */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5" />
+        <CardHeader className="px-3 sm:px-6 pt-3 sm:pt-6">
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5" />
             Resumo Operacional
           </CardTitle>
-          <CardDescription>Visão geral das operações do hotel</CardDescription>
+          <CardDescription className="text-xs sm:text-sm">Visão geral das operações do hotel</CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             <div className="space-y-2">
-              <h4 className="font-medium">Ocupação</h4>
-              <div className="space-y-1 text-sm">
+              <h4 className="font-medium text-sm sm:text-base">Ocupação</h4>
+              <div className="space-y-1 text-xs sm:text-sm">
                 <div className="flex justify-between">
                   <span>Taxa atual:</span>
                   <span className="font-medium">{stats.occupancyRate.toFixed(1)}%</span>
@@ -405,15 +454,15 @@ export default function StatisticsPanel() {
               <h4 className="font-medium">Financeiro</h4>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
-                  <span>Receita mensal:</span>
+                  <span>Receita acumulada (mês):</span>
                   <span className="font-medium">R$ {stats.monthlyRevenue.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Receita por quarto:</span>
+                  <span>Receita média por quarto:</span>
                   <span>R$ {stats.totalRooms > 0 ? (stats.monthlyRevenue / stats.totalRooms).toFixed(2) : "0.00"}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Receita por hóspede:</span>
+                  <span>Receita média por hóspede:</span>
                   <span>
                     R$ {stats.activeGuests > 0 ? (stats.monthlyRevenue / stats.activeGuests).toFixed(2) : "0.00"}
                   </span>

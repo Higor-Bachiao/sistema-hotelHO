@@ -12,10 +12,6 @@ const nextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
-  },
-  // Configurações específicas para export estático
-  experimental: {
-    missingSuspenseWithCSRBailout: false,
   }
 }
 

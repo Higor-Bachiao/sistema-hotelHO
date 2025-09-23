@@ -6,22 +6,26 @@ export interface Room {
   beds: number
   price: number // Preço por pessoa
   amenities: string[]
-  status: "available" | "occupied" | "maintenance" | "reserved"
+  status: "available" | "occupied" | "maintenance" | "cleaning" | "reserved"
   guest?: Guest
 }
 
 // Novo: Interface para despesas
 export interface Expense {
+  id: number
+  guest_id: string
   description: string
   value: number
+  created_at: string
 }
 
-// Atualizado: Campos email, cpf e phone agora são opcionais
+// Atualizado: Email agora é obrigatório, id opcional para criação
 export interface Guest {
+  id?: string // Opcional para criação, obrigatório quando retornado
   name: string
-  email?: string // Agora opcional
-  phone?: string // Agora opcional
-  cpf?: string // Agora opcional
+  email: string // Agora obrigatório
+  phone?: string // Opcional
+  cpf?: string // Opcional
   checkIn: string
   checkOut: string
   guests: number

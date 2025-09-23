@@ -7,12 +7,12 @@ import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Label } from "@/components/ui/label"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Hotel, Mail, Lock, User, Phone } from "lucide-react"
 
 export default function LoginForm() {
-  const { login, register } = useAuth()
+  const { login } = useAuth()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
 
@@ -28,7 +28,7 @@ export default function LoginForm() {
     try {
       await login(email, password)
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message || "Erro ao fazer login")
     } finally {
       setIsLoading(false)
     }
@@ -48,9 +48,11 @@ export default function LoginForm() {
     }
 
     try {
-      await register(userData)
+      // Como removemos a autenticação, vamos apenas simular um registro bem-sucedido
+      console.log("Dados de registro:", userData)
+      setError("Registro simulado - sistema sem autenticação")
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message || "Erro ao registrar")
     } finally {
       setIsLoading(false)
     }

@@ -48,10 +48,12 @@ export default function HotelDashboard() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Sistema de Gerenciamento Hoteleiro</h1>
-          <p className="text-gray-600">
+      <main className="container mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        <div className="mb-4 sm:mb-8">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+            Sistema de Gerenciamento Hoteleiro
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600">
             Bem-vindo, {user?.name}!{user?.role === "admin" && " (Administrador)"}
             {user?.role === "staff" && " (Funcionário)"}
             {user?.role === "guest" }
@@ -59,9 +61,15 @@ export default function HotelDashboard() {
         </div>
 
         <Tabs value={currentTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 gap-1 mb-8">
+          <TabsList className="grid w-full gap-1 mb-4 sm:mb-8 h-auto p-1" style={{
+            gridTemplateColumns: `repeat(${availableTabs.length}, minmax(0, 1fr))`
+          }}>
             {availableTabs.map((tab) => (
-              <TabsTrigger key={tab.value} value={tab.value} className="text-sm">
+              <TabsTrigger 
+                key={tab.value} 
+                value={tab.value} 
+                className="text-xs sm:text-sm px-2 py-2 whitespace-nowrap overflow-hidden text-ellipsis"
+              >
                 {tab.label}
               </TabsTrigger>
             ))}
