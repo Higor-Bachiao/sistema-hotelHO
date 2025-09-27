@@ -1,15 +1,16 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useHotel } from "@/contexts/hotel-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { User } from "lucide-react"
+import { User, AlertCircle } from "lucide-react"
 import { calculateTotalStayPrice, getNumberOfNights } from "@/lib/price-utils"
+import { parseDate, formatDateForDisplay } from "@/lib/date-utils"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 interface ReservationFormProps {
   initialRoomId?: string
@@ -17,8 +18,9 @@ interface ReservationFormProps {
 }
 
 export default function ReservationForm({ initialRoomId, onReservationSuccess }: ReservationFormProps) {
-  const { rooms, makeReservation } = useHotel()
+  const { rooms, makeReservation, futureReservations } = useHotel()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
 
   const [formData, setFormData] = useState({
     roomId: initialRoomId || "",
@@ -31,9 +33,52 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
     guests: 1,
   })
 
-  // Apenas quartos disponíveis podem ser reservados
-  const availableRooms = rooms.filter((room) => room.status === "available")
+  // Quartos disponíveis incluem: available + reserved com reserva futura > 1 dia
+  const availableRooms = rooms.filter((room) => {
+    if (room.status === "available") return true
+    
+    if (room.status === "reserved") {
+      // Verificar se a reserva futura permite novas reservas
+      const futureReservation = futureReservations.find(res => res.roomId === room.id)
+      if (futureReservation) {
+        const daysUntilReservation = Math.ceil(
+          (parseDate(futureReservation.guest.checkIn).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+        )
+        return daysUntilReservation > 1 // Só permite se for > 1 dia
+      }
+    }
+    
+    return false
+  })
+  
   const selectedRoom = availableRooms.find((r) => r.id === formData.roomId) || null
+
+  // Função para verificar conflitos com reservas futuras
+  const checkDateConflicts = (roomId: string, checkIn: string, checkOut: string) => {
+    const futureReservation = futureReservations.find(res => res.roomId === roomId)
+    
+    if (!futureReservation) {
+      return null // Sem conflito
+    }
+
+    const newCheckIn = parseDate(checkIn)
+    const newCheckOut = parseDate(checkOut)
+    const existingCheckIn = parseDate(futureReservation.guest.checkIn)
+    const existingCheckOut = parseDate(futureReservation.guest.checkOut)
+
+    // Verifica se há sobreposição de datas
+    const hasOverlap = (newCheckIn < existingCheckOut && newCheckOut > existingCheckIn)
+
+    if (hasOverlap) {
+      return {
+        guestName: futureReservation.guest.name,
+        checkIn: formatDateForDisplay(futureReservation.guest.checkIn),
+        checkOut: formatDateForDisplay(futureReservation.guest.checkOut)
+      }
+    }
+
+    return null // Sem conflito
+  }
 
   useEffect(() => {
     if (initialRoomId && formData.roomId !== initialRoomId) {
@@ -44,11 +89,12 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setErrorMessage("")
 
     try {
       // Validação de campos obrigatórios
       if (!formData.guestName || !formData.guestEmail) {
-        console.log("Campos obrigatórios não preenchidos")
+        setErrorMessage("Preencha todos os campos obrigatórios")
         setIsSubmitting(false)
         return
       }
@@ -56,22 +102,44 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
       // Validação de email válido
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(formData.guestEmail)) {
-        console.log("Email inválido")
+        setErrorMessage("Email inválido")
         setIsSubmitting(false)
         return
       }
 
       if (!selectedRoom) {
-        console.log("Nenhum quarto selecionado")
+        setErrorMessage("Nenhum quarto selecionado")
         setIsSubmitting(false)
         return
       }
 
-      // Validação de datas: check-out deve ser depois do check-in
-      const checkInDate = new Date(formData.checkIn)
-      const checkOutDate = new Date(formData.checkOut)
-      if (checkOutDate <= checkInDate) {
-        console.log("Data de check-out deve ser posterior ao check-in")
+      // Validação de datas
+      const today = new Date()
+      const todayString = today.getFullYear() + '-' + 
+        String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+        String(today.getDate()).padStart(2, '0')
+      
+      // Verificar se check-in é no mínimo hoje (comparar strings de data)
+      if (formData.checkIn < todayString) {
+        setErrorMessage("Data de check-in não pode ser anterior a hoje")
+        setIsSubmitting(false)
+        return
+      }
+      
+      // Verificar se check-out é depois do check-in
+      if (formData.checkOut <= formData.checkIn) {
+        setErrorMessage("Data de check-out deve ser posterior ao check-in")
+        setIsSubmitting(false)
+        return
+      }
+
+      // Validação de conflitos com reservas futuras
+      const conflict = checkDateConflicts(formData.roomId, formData.checkIn, formData.checkOut)
+      if (conflict) {
+        setErrorMessage(
+          `Conflito de datas! Este quarto já possui uma reserva futura para ${conflict.guestName} ` +
+          `de ${conflict.checkIn} a ${conflict.checkOut}. Escolha outras datas.`
+        )
         setIsSubmitting(false)
         return
       }
@@ -80,9 +148,9 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
         roomId: formData.roomId,
         guest: {
           name: formData.guestName,
-          email: formData.guestEmail, // Agora obrigatório
-          phone: formData.guestPhone || undefined, // Opcional
-          cpf: formData.guestCpf || undefined, // Opcional
+          email: formData.guestEmail,
+          phone: formData.guestPhone || undefined,
+          cpf: formData.guestCpf || undefined,
           checkIn: formData.checkIn,
           checkOut: formData.checkOut,
           guests: formData.guests,
@@ -100,10 +168,12 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
         guests: 1,
       })
 
-      console.log("Reserva realizada com sucesso!")
-      onReservationSuccess?.()
-    } catch (error) {
+      if (onReservationSuccess) {
+        onReservationSuccess()
+      }
+    } catch (error: any) {
       console.error("Erro ao fazer reserva:", error)
+      setErrorMessage(`Erro ao fazer reserva: ${error.message}`)
     } finally {
       setIsSubmitting(false)
     }
@@ -111,6 +181,10 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
+    // Limpar mensagem de erro quando o usuário começar a digitar
+    if (errorMessage) {
+      setErrorMessage("")
+    }
   }
 
   const totalStayPrice = selectedRoom
@@ -122,6 +196,13 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto px-6 pb-6">
         <form onSubmit={handleSubmit} className="space-y-6">
+          {errorMessage && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{errorMessage}</AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="room">Quarto</Label>
@@ -207,7 +288,6 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
                   value={formData.guestPhone}
                   onChange={(e) => handleInputChange("guestPhone", e.target.value)}
                   placeholder="(11) 99999-9999"
-                  // Removido: required
                 />
               </div>
 
@@ -220,7 +300,6 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
                   value={formData.guestCpf}
                   onChange={(e) => handleInputChange("guestCpf", e.target.value)}
                   placeholder="000.000.000-00"
-                  // Removido: required
                 />
               </div>
             </div>
@@ -237,9 +316,9 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
                 <Input
                   id="checkIn"
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   value={formData.checkIn}
                   onChange={(e) => handleInputChange("checkIn", e.target.value)}
-                  min={new Date().toLocaleDateString("en-CA")}
                   required
                 />
               </div>
@@ -251,55 +330,38 @@ export default function ReservationForm({ initialRoomId, onReservationSuccess }:
                 <Input
                   id="checkOut"
                   type="date"
+                  min={formData.checkIn || new Date().toISOString().split('T')[0]}
                   value={formData.checkOut}
                   onChange={(e) => handleInputChange("checkOut", e.target.value)}
-                  min={formData.checkIn || new Date().toISOString().split("T")[0]}
                   required
                 />
               </div>
             </div>
           </div>
 
-          {selectedRoom && formData.checkIn && formData.checkOut && (
-            <div className="col-span-2">
-              <div className="bg-blue-50 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Resumo do Preço</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span>Quarto:</span>
-                    <span>
-                      {selectedRoom.number} ({selectedRoom.type})
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Preço por pessoa/noite:</span>
-                    <span>R$ {selectedRoom.price.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Número de pessoas:</span>
-                    <span>{formData.guests}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Número de noites:</span>
-                    <span>{numberOfNights}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-blue-900 border-t pt-1">
-                    <span>Total da Estadia:</span>
-                    <span>R$ {totalStayPrice.toFixed(2)}</span>
-                  </div>
-                </div>
+          {selectedRoom && numberOfNights > 0 && (
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium mb-2">Resumo da Reserva</h4>
+              <div className="space-y-1 text-sm">
+                <p>Quarto {selectedRoom.number} - {selectedRoom.type}</p>
+                <p>{numberOfNights} {numberOfNights === 1 ? "noite" : "noites"}</p>
+                <p>{formData.guests} {formData.guests === 1 ? "hóspede" : "hóspedes"}</p>
+                <p className="font-medium">Total: R$ {totalStayPrice.toFixed(2)}</p>
               </div>
             </div>
           )}
-
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isSubmitting || !selectedRoom || !formData.checkIn || !formData.checkOut || !formData.guestName}
-          >
-            {isSubmitting ? "Processando..." : "Confirmar Reserva"}
-          </Button>
         </form>
+      </div>
+
+      <div className="px-6 py-4 border-t bg-white">
+        <Button
+          type="submit"
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="w-full"
+        >
+          {isSubmitting ? "Confirmando..." : "Confirmar Reserva"}
+        </Button>
       </div>
     </div>
   )

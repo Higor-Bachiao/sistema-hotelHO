@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+*/node_modules
 
 # next.js
 /.next/
@@ -9,6 +10,7 @@
 
 # production
 /build
+/dist
 
 # debug
 npm-debug.log*
@@ -16,12 +18,36 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files
-.env*
-
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# API build
+api/dist/
+api/build/
+
+# Logs
+logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Database
+*.db
+*.sqlite

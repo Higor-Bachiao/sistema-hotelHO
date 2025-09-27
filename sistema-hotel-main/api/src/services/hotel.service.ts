@@ -24,6 +24,9 @@ interface DatabaseReservation {
 export class HotelService {
   // ROOMS
   static async getAllRooms(filters?: HotelFilters): Promise<Room[]> {
+    // Sincronizar status das reservas antes de carregar quartos
+    await HotelService.syncReservationStatuses();
+    
     let query = supabaseAdmin.from('rooms').select('*');
 
     if (filters?.type && filters.type !== 'all') {
@@ -122,6 +125,90 @@ export class HotelService {
 
     await Promise.all(updatePromises);
     console.log('✅ Sincronização de status dos quartos concluída');
+  }
+
+  // Função para sincronizar status das reservas baseado na data atual
+  static async syncReservationStatuses(): Promise<void> {
+    try {
+      console.log('🔄 Sincronizando status das reservas...');
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Buscar reservas futuras que já passaram da data de check-in
+      const { data: overdueReservations, error: overdueError } = await supabaseAdmin
+        .from('reservations')
+        .select(`
+          id,
+          room_id,
+          status,
+          guests!inner (
+            check_in,
+            check_out,
+            name
+          )
+        `)
+        .eq('status', 'future');
+
+      if (overdueError) {
+        console.error('❌ Erro ao buscar reservas em atraso:', overdueError);
+        return;
+      }
+
+      if (!overdueReservations || overdueReservations.length === 0) {
+        console.log('✅ Nenhuma reserva futura para verificar');
+        return;
+      }
+
+      // Atualizar reservas que já passaram da data
+      const updatePromises = overdueReservations.map(async (reservation) => {
+        const guest = Array.isArray(reservation.guests) ? reservation.guests[0] : reservation.guests;
+        if (!guest) return;
+
+        const checkInDate = new Date(guest.check_in);
+        const checkOutDate = new Date(guest.check_out);
+        checkInDate.setHours(0, 0, 0, 0);
+        checkOutDate.setHours(0, 0, 0, 0);
+
+        let newStatus = 'future';
+        let newRoomStatus = null;
+
+        // Determinar novo status baseado nas datas
+        if (today >= checkOutDate) {
+          // Já passou do check-out, marcar como completada
+          newStatus = 'completed';
+          newRoomStatus = 'available';
+          console.log(`📅 Reserva ${reservation.id} completada (passou do check-out)`);
+        } else if (today >= checkInDate) {
+          // Já passou do check-in, marcar como ativa
+          newStatus = 'active';
+          newRoomStatus = 'occupied';
+          console.log(`📅 Reserva ${reservation.id} agora está ativa (check-in chegou)`);
+        }
+
+        // Atualizar status da reserva se necessário
+        if (newStatus !== 'future') {
+          await supabaseAdmin
+            .from('reservations')
+            .update({ status: newStatus })
+            .eq('id', reservation.id);
+
+          // Atualizar status do quarto se necessário
+          if (newRoomStatus) {
+            await supabaseAdmin
+              .from('rooms')
+              .update({ status: newRoomStatus })
+              .eq('id', reservation.room_id);
+          }
+        }
+      });
+
+      await Promise.all(updatePromises);
+      console.log('✅ Sincronização de reservas concluída');
+      
+    } catch (error: any) {
+      console.error('❌ Erro ao sincronizar status das reservas:', error);
+    }
   }
 
   static async getRoomById(id: string): Promise<Room | null> {
@@ -332,6 +419,9 @@ export class HotelService {
     try {
       console.log('🔍 Buscando reservas futuras...');
       
+      // Sincronizar status das reservas antes de buscar
+      await HotelService.syncReservationStatuses();
+      
       const { data, error } = await supabaseAdmin
         .from('reservations')
         .select(`
@@ -343,7 +433,7 @@ export class HotelService {
           guests:guest_id(id, name, email, phone, cpf, check_in, check_out, num_guests),
           rooms:room_id(id, number, type, price)
         `)
-        .in('status', ['future', 'active'])
+        .eq('status', 'future')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -408,6 +498,85 @@ export class HotelService {
     }
   }
 
+  // Função para verificar conflitos de datas entre reservas
+  static async checkReservationConflicts(
+    roomId: string, 
+    newCheckIn: string, 
+    newCheckOut: string
+  ): Promise<{ hasConflict: boolean; message?: string }> {
+    try {
+      console.log('🔍 Verificando conflitos para quarto:', roomId, 'período:', newCheckIn, 'até', newCheckOut);
+      
+      // Buscar todas as reservas ativas e futuras para este quarto
+      const { data: existingReservations, error } = await supabaseAdmin
+        .from('reservations')
+        .select(`
+          id,
+          status,
+          guest_id,
+          guests!inner (
+            check_in,
+            check_out,
+            name
+          )
+        `)
+        .eq('room_id', roomId)
+        .in('status', ['active', 'future']);
+
+      if (error) {
+        console.error('❌ Erro ao buscar reservas existentes:', error);
+        return { hasConflict: false };
+      }
+
+      console.log('📋 Reservas encontradas:', existingReservations?.length || 0);
+
+      if (!existingReservations || existingReservations.length === 0) {
+        console.log('✅ Nenhuma reserva existente, sem conflito');
+        return { hasConflict: false };
+      }
+
+      const newCheckInDate = new Date(newCheckIn);
+      const newCheckOutDate = new Date(newCheckOut);
+
+      // Verificar sobreposição com cada reserva existente
+      for (const reservation of existingReservations) {
+        const guest = Array.isArray(reservation.guests) ? reservation.guests[0] : reservation.guests;
+        if (!guest) continue;
+
+        const existingCheckIn = new Date(guest.check_in);
+        const existingCheckOut = new Date(guest.check_out);
+
+        console.log('🔄 Comparando com reserva existente:', {
+          guestName: guest.name,
+          existingPeriod: `${existingCheckIn.toLocaleDateString()} até ${existingCheckOut.toLocaleDateString()}`,
+          newPeriod: `${newCheckInDate.toLocaleDateString()} até ${newCheckOutDate.toLocaleDateString()}`
+        });
+
+        // Verifica se há sobreposição de datas
+        const hasOverlap = (newCheckInDate < existingCheckOut && newCheckOutDate > existingCheckIn);
+
+        if (hasOverlap) {
+          const guestName = guest.name || 'Hóspede';
+          const existingCheckInFormatted = existingCheckIn.toLocaleDateString('pt-BR');
+          const existingCheckOutFormatted = existingCheckOut.toLocaleDateString('pt-BR');
+          
+          console.log('❌ Conflito detectado!');
+          
+          return {
+            hasConflict: true,
+            message: `Este quarto já possui uma reserva para ${guestName} de ${existingCheckInFormatted} a ${existingCheckOutFormatted}`
+          };
+        }
+      }
+
+      console.log('✅ Nenhum conflito detectado');
+      return { hasConflict: false };
+    } catch (error: any) {
+      console.error('❌ Erro ao verificar conflitos de reserva:', error);
+      return { hasConflict: false };
+    }
+  }
+
   static async createReservation(reservation: Omit<Reservation, 'id' | 'createdAt'>): Promise<Reservation> {
     const reservationData = reservation as any;
     
@@ -415,20 +584,35 @@ export class HotelService {
       roomId: reservationData.roomId,
       guestName: reservationData.guest?.name,
       guestEmail: reservationData.guest?.email,
-      guestCpf: reservationData.guest?.cpf
+      guestCpf: reservationData.guest?.cpf,
+      checkIn: reservationData.guest?.checkIn,
+      checkOut: reservationData.guest?.checkOut
     });
     
-    // Verificar se o quarto está disponível
+    // Verificar se o quarto existe
     const room = await HotelService.getRoomById(reservationData.roomId);
     if (!room) {
       throw new Error('Quarto não encontrado');
     }
 
-    if (room.status !== 'available') {
-      throw new Error('Quarto não está disponível');
+    // Verificar conflitos de datas com reservas existentes
+    const hasConflict = await HotelService.checkReservationConflicts(
+      reservationData.roomId,
+      reservationData.guest.checkIn,
+      reservationData.guest.checkOut
+    );
+
+    if (hasConflict.hasConflict) {
+      throw new Error(`Conflito de datas: ${hasConflict.message}`);
     }
 
-    console.log('✅ Quarto verificado, buscando/criando hóspede...');
+    // Verificar se o quarto pode receber reservas
+    // Permite reservas em quartos disponíveis ou reservados (sem conflito de datas)
+    if (room.status === 'maintenance' || room.status === 'cleaning') {
+      throw new Error('Quarto não está disponível para reservas (em manutenção ou limpeza)');
+    }
+
+    console.log('✅ Quarto e datas verificados, buscando/criando hóspede...');
     
     let guest: Guest;
     let isNewGuest = false;

@@ -338,4 +338,21 @@ export class HotelController {
       });
     }
   }
+
+  // Sincronização manual de reservas
+  static async syncReservations(req: Request, res: Response): Promise<void> {
+    try {
+      await HotelService.syncReservationStatuses();
+      
+      res.json({
+        success: true,
+        message: 'Sincronização de reservas executada com sucesso'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
 }

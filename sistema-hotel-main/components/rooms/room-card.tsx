@@ -15,9 +15,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Bed, Users, Wifi, Car, Coffee, Tv, CheckCircle, Calendar, DollarSign, PlusCircle } from "lucide-react"
+import { Bed, Users, Wifi, Car, Coffee, Tv, CheckCircle, Calendar, DollarSign, PlusCircle, Clock } from "lucide-react"
 import type { Room } from "@/types/hotel"
 import { calculateTotalStayPrice, getNumberOfNights } from "@/lib/price-utils"
+import { canReserveRoom, getRoomFutureReservation, formatDateForDisplay, getDaysUntilDate } from "@/lib/date-utils"
 import ReservationForm from "@/components/reservations/reservation-form"
 
 interface RoomCardProps {
@@ -31,22 +32,40 @@ export default function RoomCard({ room }: RoomCardProps) {
   const [newExpenseDescription, setNewExpenseDescription] = useState("")
   const [newExpenseValue, setNewExpenseValue] = useState<number | string>("")
 
-  // Verificar se este quarto tem reserva futura
-  const hasFutureReservation = futureReservations.some((reservation) => reservation.roomId === room.id)
+  // Obter informações da reserva futura (apenas para quartos disponíveis/reservados)
+  const futureReservation = (room.status === "available" || room.status === "reserved") 
+    ? getRoomFutureReservation(futureReservations, room.id) 
+    : null
+    
+  const canReserveThisRoom = canReserveRoom(room.status, futureReservations, room.id)
 
   const getStatusDisplay = () => {
-    if (room.status === "available" && hasFutureReservation) {
-      return {
-        statusText: "Disponível (Reservado Futuro)",
-        statusColor: "bg-green-100 text-green-800 border-green-200",
+    // Se o quarto está ocupado, não mostrar informações de reserva futura
+    if (room.status === "occupied") {
+      return { statusText: "Ocupado", statusColor: "bg-red-100 text-red-800 border-red-200" }
+    }
+
+    // Lógica para quartos disponíveis ou reservados com reserva futura
+    if ((room.status === "available" || room.status === "reserved") && futureReservation) {
+      const daysUntilReservation = getDaysUntilDate(futureReservation.guest.checkIn)
+      
+      if (daysUntilReservation <= 1) {
+        return {
+          statusText: "Reserva Próxima",
+          statusColor: "bg-orange-100 text-orange-800 border-orange-200",
+        }
+      } else {
+        return {
+          statusText: "Disponível (Reservado Futuro)",
+          statusColor: "bg-green-100 text-green-800 border-green-200",
+        }
       }
     }
 
+    // Status padrão para quartos sem reserva futura
     switch (room.status) {
       case "available":
         return { statusText: "Disponível", statusColor: "bg-green-100 text-green-800 border-green-200" }
-      case "occupied":
-        return { statusText: "Ocupado", statusColor: "bg-red-100 text-red-800 border-red-200" }
       case "maintenance":
         return { statusText: "Manutenção", statusColor: "bg-yellow-100 text-yellow-800 border-yellow-200" }
       case "cleaning":
@@ -93,8 +112,8 @@ export default function RoomCard({ room }: RoomCardProps) {
 
   const numberOfNights = room.guest ? getNumberOfNights(room.guest.checkIn, room.guest.checkOut) : 0
 
-  // Quarto pode ser reservado se estiver disponível (mesmo com reserva futura)
-  const canReserve = room.status === "available"
+  // Usar a nova lógica para verificar se pode reservar
+  const canReserve = canReserveThisRoom
 
   // Quarto pode ser liberado se estiver ocupado
   const canCheckout = room.status === "occupied"
@@ -146,6 +165,30 @@ export default function RoomCard({ room }: RoomCardProps) {
               <p className="text-xs sm:text-sm font-medium truncate">{room.guest.name}</p>
               {room.guest.email && <p className="text-xs text-gray-600 truncate">{room.guest.email}</p>}
               <p className="text-xs text-gray-600">Check-in: {new Date(room.guest.checkIn).toLocaleDateString()}</p>
+            </div>
+          )}
+
+          {!room.guest && futureReservation && (
+            <div className="bg-blue-50 border border-blue-200 p-2 sm:p-3 rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <Clock className="w-3 h-3 sm:w-4 sm:h-4 text-blue-600" />
+                <p className="text-xs sm:text-sm font-medium text-blue-800">Reserva Futura</p>
+              </div>
+              <p className="text-xs sm:text-sm font-medium truncate text-blue-700">{futureReservation.guest.name}</p>
+              <div className="text-xs text-blue-600 space-y-1">
+                <p>Check-in: {formatDateForDisplay(futureReservation.guest.checkIn)}</p>
+                <p>Check-out: {formatDateForDisplay(futureReservation.guest.checkOut)}</p>
+                {getDaysUntilDate(futureReservation.guest.checkIn) >= 0 && (
+                  <p className="font-medium">
+                    {getDaysUntilDate(futureReservation.guest.checkIn) === 0 
+                      ? "Hoje" 
+                      : getDaysUntilDate(futureReservation.guest.checkIn) === 1
+                      ? "Amanhã" 
+                      : `Em ${getDaysUntilDate(futureReservation.guest.checkIn)} dias`
+                    }
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </CardContent>

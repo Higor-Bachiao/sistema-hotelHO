@@ -109,6 +109,7 @@ export default function AdminPanel() {
   }
 
   const handleEditRoom = (room: any) => {
+    console.log('Editando quarto:', room)
     setSelectedRoomForEdit({ ...room })
     setShowEditRoom(true)
   }
@@ -120,12 +121,14 @@ export default function AdminPanel() {
     }
 
     const { id, guest, ...updates } = selectedRoomForEdit
+    console.log('Salvando atualizações do quarto:', id, 'dados:', updates)
     updateRoom(id, updates)
     setShowEditRoom(false)
     setSelectedRoomForEdit(null)
   }
 
   const handleStatusChange = (roomId: string, newStatus: string) => {
+    console.log('Mudando status do quarto:', roomId, 'para:', newStatus)
     updateRoom(roomId, { status: newStatus as "available" | "occupied" | "maintenance" | "cleaning" | "reserved" })
   }
 

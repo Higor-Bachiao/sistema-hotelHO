@@ -21,4 +21,7 @@ router.get('/statistics', HotelController.getStatistics);
 router.get('/guests/:guestId/expenses', HotelController.getGuestExpenses);
 router.post('/guests/:guestId/expenses', HotelController.addExpense);
 
+// Rota para sincronização manual
+router.post('/sync/reservations', HotelController.syncReservations);
+
 export default router;
