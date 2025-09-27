@@ -39,9 +39,9 @@ export const getLocalIP = async (): Promise<string | null> => {
 }
 
 export const detectAPIEndpoint = async (): Promise<string> => {
-  const defaultEndpoint = 'http://localhost:3001/api'
+  const defaultEndpoint = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
   
-  // Se estamos no servidor, usar localhost
+  // Se estamos no servidor, usar variável de ambiente ou localhost
   if (typeof window === 'undefined') {
     return defaultEndpoint
   }

@@ -4,14 +4,29 @@
   "private": true,
   "scripts": {
     "build": "next build",
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "lint": "next lint",
-    "start": "next start",
+    "start": "next start -H 0.0.0.0",
     "api:dev": "cd api && npm run dev",
     "api:build": "cd api && npm run build",
     "api:start": "cd api && npm start",
     "dev:full": "concurrently \"npm run api:dev\" \"npm run dev\"",
-    "install:all": "npm install && cd api && npm install"
+    "install:all": "npm install && cd api && npm install",
+    "build:all": "npm run api:build && npm run build",
+    "build:static": "npm run api:build && npm run build:export",
+    "build:export": "cross-env NEXT_CONFIG_MODE=export next build",
+    "build:server": "npm run api:build && next build",
+    "build:production": "npm run clean:windows && npm run build:all",
+    "build:netlify": "npm run api:build && npm run build:export",
+    "build:vercel": "npm run build:all",
+    "build:railway": "npm run build:server",
+    "build:render": "npm run build:server",
+    "build:hostinger": "npm run build:static",
+    "clean:windows": "if exist .next rmdir /s /q .next & if exist out rmdir /s /q out & if exist dist rmdir /s /q dist",
+    "start:production": "concurrently \"npm run api:start\" \"npm start\"",
+    "deploy:vercel": "vercel --prod",
+    "type-check": "tsc --noEmit",
+    "analyze": "cross-env ANALYZE=true npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -76,8 +91,10 @@
     "@types/pg": "^8.15.5",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.0.0",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
-    "typescript": "^5"
+    "typescript": "^5",
+    "webpack-bundle-analyzer": "^4.10.2"
   }
 }

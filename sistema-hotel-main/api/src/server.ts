@@ -11,10 +11,16 @@ dotenv.config();
 
 const app = express();
 
-// CORS - permitir requisições de qualquer origem para acesso móvel
+// CORS - configuração baseada em ambiente
+const corsOrigins = process.env.CORS_ORIGIN ? 
+  process.env.CORS_ORIGIN.split(',').map(origin => origin.trim()) : 
+  ['http://localhost:3000'];
+
 app.use(cors({
-  origin: true, // Permite qualquer origem
-  credentials: true
+  origin: process.env.NODE_ENV === 'production' ? corsOrigins : true,
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 // Body parsing
@@ -39,7 +45,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📱 Ambiente: ${config.nodeEnv}`);
   console.log(`🌐 Acesso local: http://localhost:${PORT}`);
-  console.log(`📱 Acesso remoto: http://192.168.100.36:${PORT}`);
+  console.log(`📱 Acesso remoto: http://192.168.100.155:${PORT}`);
 });
 
 export default app;

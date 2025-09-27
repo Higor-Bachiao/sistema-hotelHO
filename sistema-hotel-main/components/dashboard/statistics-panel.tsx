@@ -28,7 +28,7 @@ import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
 export default function StatisticsPanel() {
-  const { getStatistics, getGuestHistory, deleteGuestHistory, debugUpdateHistoryStatus } = useHotel()
+  const { getStatistics, getGuestHistory, deleteGuestHistory } = useHotel()
   const { statistics: apiStats, loading: statsLoading, refresh: refreshStats } = useApiStatistics()
   
   // Usar estatísticas da API se disponíveis, senão usar as locais
@@ -368,22 +368,7 @@ export default function StatisticsPanel() {
                           >
                             <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
                           </Button>
-                          {/* DEBUG: Botão temporário para testar atualização */}
-                          {entry.status === "active" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                console.log("🔧 Testando atualização para:", entry.guest.name)
-                                console.log("🔧 Nome em bytes:", Array.from(entry.guest.name).map(c => c.charCodeAt(0)))
-                                console.log("🔧 Comprimento:", entry.guest.name.length)
-                                debugUpdateHistoryStatus(entry.guest.name, "completed")
-                              }}
-                              className="h-6 w-6 sm:h-8 sm:w-8 p-0"
-                            >
-                              <span className="text-xs">✓</span>
-                            </Button>
-                          )}
+                          {/* Botão removido para produção */}
                         </div>
                       </TableCell>
                     </TableRow>

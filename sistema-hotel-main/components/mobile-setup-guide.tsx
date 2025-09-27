@@ -26,8 +26,8 @@ export default function MobileSetupGuide({ apiUrl, isConnected }: MobileSetupGui
   const [copied, setCopied] = useState(false)
 
   const getLocalIP = () => {
-    // Simular detecção de IP local comum
-    return "192.168.1.100" // Placeholder - usuário precisará substituir
+    // IP atual da máquina
+    return "192.168.100.155"
   }
 
   const copyToClipboard = (text: string) => {

@@ -7,12 +7,12 @@ import { getNumberOfNights } from "@/lib/price-utils"
 // Detectar URL da API baseado no ambiente
 const getAPIBaseURL = () => {
   if (typeof window === 'undefined') {
-    return 'http://localhost:3001/api'
+    return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
   }
   
-  // SOLUÇÃO TEMPORÁRIA: Sempre usar o IP da máquina para compartilhar dados
+  // Sempre usar a variável de ambiente ou IP da máquina para compartilhar dados
   // Isso garante que localhost e remoto usem a mesma instância da API
-  return 'http://192.168.100.36:3001/api'
+  return process.env.NEXT_PUBLIC_API_URL || 'http://192.168.100.155:3001/api'
 }
 
 // URL base da API

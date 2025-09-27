@@ -1,10 +1,11 @@
 [build]
   publish = "out"
-  command = "npm run build"
+  command = "npm run build:netlify"
 
 [build.environment]
   NODE_VERSION = "18"
   NEXT_TELEMETRY_DISABLED = "1"
+  NEXT_CONFIG_MODE = "export"
 
 # Configuração para SPA (Single Page Application)
 [[redirects]]
@@ -12,7 +13,7 @@
   to = "/index.html"
   status = 200
 
-# Headers para melhor performance
+# Headers para melhor performance e segurança
 [[headers]]
   for = "/*"
   [headers.values]
@@ -20,9 +21,23 @@
     X-XSS-Protection = "1; mode=block"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
 
 # Cache para assets estáticos
 [[headers]]
   for = "/static/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/_next/static/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# API Functions (se usar Netlify Functions)
+[functions]
+  directory = "netlify/functions"
+
+# Edge Functions
+[edge_functions]
+  directory = "netlify/edge-functions"

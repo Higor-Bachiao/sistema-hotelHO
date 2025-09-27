@@ -76,6 +76,17 @@ const nextConfig = {
     ]
   },
   
+  // Redirects
+  async redirects() {
+    return [
+      {
+        source: '/admin',
+        destination: '/',
+        permanent: false,
+      }
+    ]
+  },
+  
   // Configuração experimental
   experimental: {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons']
