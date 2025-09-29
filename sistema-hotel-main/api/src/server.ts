@@ -45,7 +45,7 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📱 Ambiente: ${config.nodeEnv}`);
   console.log(`🌐 Acesso local: http://localhost:${PORT}`);
-  console.log(`📱 Acesso remoto: http://192.168.100.155:${PORT}`);
+  console.log(`📱 Acesso remoto: http://192.168.100.36:${PORT}`);
 });
 
 export default app;

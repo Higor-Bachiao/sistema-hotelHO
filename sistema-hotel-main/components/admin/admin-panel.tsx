@@ -31,7 +31,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Edit, Trash2, Bed, DollarSign } from "lucide-react"
+import { Plus, Edit, Trash2, Bed, DollarSign, Settings } from "lucide-react"
+import { SyncModeToggle } from "./sync-mode-toggle"
 
 export default function AdminPanel() {
   const { rooms, addRoom, updateRoom, deleteRoom } = useHotel()
@@ -160,11 +161,16 @@ export default function AdminPanel() {
       </div>
 
       <Tabs defaultValue="rooms" className="w-full">
-        <TabsList className="grid w-full grid-cols-1">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="rooms" className="flex items-center gap-2 text-xs sm:text-sm">
             <Bed className="w-3 h-3 sm:w-4 sm:h-4" />
             <span className="hidden sm:inline">Gerenciar Quartos</span>
             <span className="sm:hidden">Quartos</span>
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2 text-xs sm:text-sm">
+            <Settings className="w-3 h-3 sm:w-4 sm:h-4" />
+            <span className="hidden sm:inline">Configurações</span>
+            <span className="sm:hidden">Config</span>
           </TabsTrigger>
         </TabsList>
 
@@ -541,6 +547,15 @@ export default function AdminPanel() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-3 sm:space-y-4">
+          <div>
+            <h3 className="text-base sm:text-lg font-medium">Configurações do Sistema</h3>
+            <p className="text-xs sm:text-sm text-gray-600">Gerencie configurações de sincronização e performance</p>
+          </div>
+          
+          <SyncModeToggle />
         </TabsContent>
       </Tabs>
     </div>

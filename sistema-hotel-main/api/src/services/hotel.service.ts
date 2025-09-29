@@ -1,6 +1,54 @@
 import { supabaseAdmin } from '../config/database';
 import { Room, Guest, Reservation, Expense, HotelStatistics, HotelFilters } from '../types';
 
+// Cache para evitar requests desnecessárias
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // Time To Live em ms
+}
+
+class CacheManager {
+  private static cache = new Map<string, CacheEntry<any>>();
+  
+  static set<T>(key: string, data: T, ttlMs: number = 30000): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl: ttlMs
+    });
+  }
+  
+  static get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+    
+    const now = Date.now();
+    if (now - entry.timestamp > entry.ttl) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data as T;
+  }
+  
+  static invalidate(pattern?: string): void {
+    if (pattern) {
+      for (const key of this.cache.keys()) {
+        if (key.includes(pattern)) {
+          this.cache.delete(key);
+        }
+      }
+    } else {
+      this.cache.clear();
+    }
+  }
+}
+
+// Debounce para sincronização
+let syncInProgress = false;
+let lastSyncTime = 0;
+
 // Tipos auxiliares para conversão entre camelCase (frontend) e snake_case (banco)
 interface DatabaseGuest {
   id: string;
@@ -24,8 +72,20 @@ interface DatabaseReservation {
 export class HotelService {
   // ROOMS
   static async getAllRooms(filters?: HotelFilters): Promise<Room[]> {
-    // Sincronizar status das reservas antes de carregar quartos
-    await HotelService.syncReservationStatuses();
+    // Verificar cache primeiro
+    const cacheKey = `rooms:${JSON.stringify(filters || {})}`;
+    const cachedRooms = CacheManager.get<Room[]>(cacheKey);
+    if (cachedRooms) {
+      console.log('✅ Rooms carregados do cache');
+      return cachedRooms;
+    }
+
+    // Sincronizar apenas se necessário (debounce de 1 minuto)
+    const now = Date.now();
+    if (now - lastSyncTime > 60000 && !syncInProgress) {
+      await HotelService.syncReservationStatuses();
+      lastSyncTime = now;
+    }
     
     let query = supabaseAdmin.from('rooms').select('*');
 
@@ -76,6 +136,10 @@ export class HotelService {
       return room;
     });
 
+    // Cachear resultado por 30 segundos
+    CacheManager.set(cacheKey, roomsWithUpdatedStatus, 30000);
+    console.log('✅ Rooms carregados do banco e cacheados');
+    
     return roomsWithUpdatedStatus;
   }
 
@@ -129,7 +193,13 @@ export class HotelService {
 
   // Função para sincronizar status das reservas baseado na data atual
   static async syncReservationStatuses(): Promise<void> {
+    if (syncInProgress) {
+      console.log('⏳ Sincronização já em andamento, pulando...');
+      return;
+    }
+    
     try {
+      syncInProgress = true;
       console.log('🔄 Sincronizando status das reservas...');
       
       const today = new Date();
@@ -206,8 +276,14 @@ export class HotelService {
       await Promise.all(updatePromises);
       console.log('✅ Sincronização de reservas concluída');
       
+      // Invalidar cache relacionado
+      CacheManager.invalidate('rooms');
+      CacheManager.invalidate('reservations');
+      
     } catch (error: any) {
       console.error('❌ Erro ao sincronizar status das reservas:', error);
+    } finally {
+      syncInProgress = false;
     }
   }
 
@@ -245,6 +321,9 @@ export class HotelService {
       throw new Error(`Erro ao criar quarto: ${error.message}`);
     }
 
+    // Invalidar cache de rooms
+    CacheManager.invalidate('rooms');
+    
     return data;
   }
 
@@ -260,6 +339,10 @@ export class HotelService {
       throw new Error(`Erro ao atualizar quarto: ${error.message}`);
     }
 
+    // Invalidar cache relacionado
+    CacheManager.invalidate('rooms');
+    CacheManager.invalidate('statistics');
+    
     return data;
   }
 
@@ -797,6 +880,14 @@ export class HotelService {
 
   // STATISTICS
   static async getHotelStatistics(): Promise<HotelStatistics> {
+    // Verificar cache primeiro (cache mais longo para estatísticas)
+    const cacheKey = 'statistics:all';
+    const cachedStats = CacheManager.get<HotelStatistics>(cacheKey);
+    if (cachedStats) {
+      console.log('✅ Estatísticas carregadas do cache');
+      return cachedStats;
+    }
+
     console.log('📊 Calculando estatísticas do hotel...');
     
     // Buscar todos os quartos
@@ -939,7 +1030,7 @@ export class HotelService {
 
     console.log(`💵 Receita mensal total calculada: R$${monthlyRevenue}`);
 
-    return {
+    const statistics = {
       totalRooms,
       occupiedRooms,
       availableRooms,
@@ -950,6 +1041,12 @@ export class HotelService {
       monthlyRevenue,
       activeGuests: activeReservations?.length || 0
     };
+
+    // Cachear por 2 minutos (estatísticas podem ser menos frequentes)
+    CacheManager.set(cacheKey, statistics, 120000);
+    console.log('✅ Estatísticas calculadas e cacheadas');
+
+    return statistics;
   }
 
   // CHECK-IN/CHECK-OUT

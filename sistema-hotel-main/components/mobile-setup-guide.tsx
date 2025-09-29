@@ -27,7 +27,7 @@ export default function MobileSetupGuide({ apiUrl, isConnected }: MobileSetupGui
 
   const getLocalIP = () => {
     // IP atual da máquina
-    return "192.168.100.155"
+    return "192.168.100.36"
   }
 
   const copyToClipboard = (text: string) => {

@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from "react"
 import type { Room, Reservation, HotelFilters, HotelStatistics, Expense, Guest } from "@/types/hotel"
 import { getNumberOfNights } from "@/lib/price-utils"
+import { debounce, RequestCache } from "@/lib/debounce"
+import { getSyncConfig, logCurrentConfig } from "@/lib/sync-config"
 
 // Detectar URL da API baseado no ambiente
 const getAPIBaseURL = () => {
@@ -12,7 +14,7 @@ const getAPIBaseURL = () => {
   
   // Sempre usar a variável de ambiente ou IP da máquina para compartilhar dados
   // Isso garante que localhost e remoto usem a mesma instância da API
-  return process.env.NEXT_PUBLIC_API_URL || 'http://192.168.100.155:3001/api'
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 }
 
 // URL base da API
@@ -346,9 +348,17 @@ export function HotelProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  //  Função para sincronizar dados automaticamente
+  // Função para sincronizar dados automaticamente com debounce
   const syncData = async (silent = true) => {
     if (!isOnline) return
+
+    // Verificar cache primeiro
+    const cacheKey = 'sync:data';
+    const cachedSync = RequestCache.get<boolean>(cacheKey);
+    if (cachedSync && silent) {
+      console.log('⚡ Sincronização pulada (cache ativo)');
+      return;
+    }
 
     try {
       if (!silent) {
@@ -363,6 +373,10 @@ export function HotelProvider({ children }: { children: ReactNode }) {
 
       setLastSync(new Date())
 
+      // Usar configuração dinâmica para cache
+      const config = getSyncConfig();
+      RequestCache.set(cacheKey, true, config.cache.rooms);
+
       if (!silent) {
         console.log("✅ Dados sincronizados com sucesso")
       }
@@ -371,6 +385,9 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       setError(`Erro de sincronização: ${error.message}`)
     }
   }
+
+  // Versão com debounce para evitar chamadas excessivas
+  const debouncedSyncData = debounce(syncData, 5000);
 
   // 🔄 Carregar dados iniciais
   useEffect(() => {
@@ -401,11 +418,14 @@ export function HotelProvider({ children }: { children: ReactNode }) {
   // 🔄 Configurar sincronização automática
   useEffect(() => {
     if (!isLoading && isOnline) {
-      console.log("⏰ Iniciando sincronização automática (10s)")
+      const config = getSyncConfig();
+      logCurrentConfig(); // Log da configuração atual
+      
+      console.log(`⏰ Iniciando sincronização automática (${config.rooms / 1000}s)`)
 
       syncIntervalRef.current = setInterval(() => {
-        syncData(true)
-      }, 10000) // Sincronizar a cada 10 segundos
+        debouncedSyncData(true)
+      }, config.rooms) // Usar configuração dinâmica
 
       return () => {
         if (syncIntervalRef.current) {
@@ -691,6 +711,11 @@ export function HotelProvider({ children }: { children: ReactNode }) {
 
       if (response.ok) {
         await updateGuestHistory() // Atualizar histórico após checkout bem-sucedido
+        
+        // Invalidar cache para forçar atualização imediata
+        RequestCache.invalidate('sync');
+        RequestCache.invalidate('rooms');
+        
         await syncData(false) // Sincronizar dados forçadamente
         console.log("✅ Checkout realizado")
       } else {
@@ -731,6 +756,10 @@ export function HotelProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
       
       if (data.success) {
+        // Invalidar cache para forçar atualização imediata
+        RequestCache.invalidate('sync');
+        RequestCache.invalidate('rooms');
+        
         // Forçar sincronização completa
         await syncData(false)
         addToGuestHistory(reservation.guest, reservation.roomId, "active")

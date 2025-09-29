@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import type { HotelStatistics } from '@/types/hotel'
+import { getSyncConfig } from '@/lib/sync-config'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api'
 
@@ -34,10 +35,14 @@ export function useApiStatistics() {
   }
 
   useEffect(() => {
+    const config = getSyncConfig();
+    
     loadStatistics()
     
-    // Atualizar estatísticas a cada 30 segundos
-    const interval = setInterval(loadStatistics, 30000)
+    // Usar configuração dinâmica para intervalo
+    const interval = setInterval(loadStatistics, config.statistics)
+    
+    console.log(`📊 Estatísticas configuradas para atualizar a cada ${config.statistics / 1000}s`)
     
     return () => clearInterval(interval)
   }, [])
